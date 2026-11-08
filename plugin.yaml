@@ -1,0 +1,22 @@
+name: homelab-watch
+version: 0.1.0
+manifest_version: 2
+api_version: 1
+description: >-
+  Read-only monitoring for your homelab: router, servers, websites, a Bitaxe miner and your own cron
+  jobs. Failures roll up to the root cause, so a router outage is one alert, not ten. Ask Hermes
+  "is everything OK at home?" from chat or voice; alerts arrive through a no_agent cron job.
+author: lpsmurf (HFSP Labs)
+license: MIT
+homepage: https://github.com/lpsmurf/hermes-homelab-watch
+tags: [homelab, monitoring, uptime, bitaxe, home-assistant]
+provides_tools:
+  - homelab_status
+  - homelab_heartbeat
+provides_hooks: []
+config_schema:
+  targets_file:
+    type: str
+    default: ""
+    label: Targets file
+    description: Path to targets.yaml. Empty uses the plugin's data folder (run `hermes homelab init`).

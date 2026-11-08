@@ -1,0 +1,90 @@
+"""Where targets and state live, plus heartbeats; shared by the tools, the slash command and the CLI."""
+
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+import time
+from pathlib import Path
+
+from .engine import Round, check_round
+from .probes import ProbeResult, run_probe
+from .targets import Target, load_targets
+
+PLUGIN_ID = "homelab-watch"
+HEARTBEAT_PREFIX = "heartbeat:"
+
+
+def data_dir() -> Path:
+    from plugins.plugin_storage import plugin_data_dir
+    return Path(plugin_data_dir(PLUGIN_ID))
+
+
+class Store:
+    """JSON state file, replaced atomically so a cron tick and a tool call never see half a write."""
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def load(self) -> dict:
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError:
+            return {}  # a corrupt file only costs the flap-damping history
+
+    def save(self, state: dict) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=self.path.parent, prefix=".state-")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(state, fh)
+        os.replace(tmp, self.path)
+
+
+def heartbeat_targets(state: dict) -> dict[str, Target]:
+    return {
+        f"{HEARTBEAT_PREFIX}{name}": Target(id=f"{HEARTBEAT_PREFIX}{name}", name=f"{name} (heartbeat)",
+                                            check="heartbeat", fail_after=1)
+        for name in state.get("heartbeats", {})
+    }
+
+
+def heartbeat_probe(state: dict, now: float):
+    def probe(t: Target) -> ProbeResult:
+        if t.check != "heartbeat":
+            return run_probe(t)
+        hb = state["heartbeats"][t.id.removeprefix(HEARTBEAT_PREFIX)]
+        late_after = hb["every_minutes"] * 60 * 2
+        age = now - hb["last"]
+        if age > late_after:
+            return ProbeResult(False, f"no check-in for {int(age // 60)} minutes")
+        return ProbeResult(True, f"checked in {int(age // 60)} minutes ago")
+    return probe
+
+
+class Watch:
+    def __init__(self, targets_path: Path, state_path: Path):
+        self.targets_path = targets_path
+        self.store = Store(state_path)
+
+    @classmethod
+    def from_settings(cls, targets_file: str = "") -> "Watch":
+        base = data_dir()
+        return cls(Path(targets_file).expanduser() if targets_file else base / "targets.yaml", base / "state.json")
+
+    def check(self, now: float | None = None) -> tuple[Round, dict[str, Target]]:
+        now = time.time() if now is None else now
+        state = self.store.load()
+        targets = {**load_targets(self.targets_path), **heartbeat_targets(state)}
+        rnd = check_round(targets, state, probe=heartbeat_probe(state, now), now=now)
+        self.store.save(state)
+        return rnd, targets
+
+    def heartbeat(self, name: str, every_minutes: int = 60, now: float | None = None) -> dict:
+        state = self.store.load()
+        entry = {"last": time.time() if now is None else now, "every_minutes": max(1, int(every_minutes))}
+        state.setdefault("heartbeats", {})[name] = entry
+        self.store.save(state)
+        return entry
