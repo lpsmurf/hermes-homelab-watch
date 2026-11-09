@@ -6,7 +6,15 @@ import json
 import os
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
+
+try:
+    import fcntl
+    msvcrt = None
+except ImportError:  # Windows
+    fcntl = None
+    import msvcrt
 
 from .engine import Round, check_round
 from .probes import ProbeResult, run_probe
@@ -21,11 +29,38 @@ def data_dir() -> Path:
     return Path(plugin_data_dir(PLUGIN_ID))
 
 
+def scripts_dir() -> Path:
+    """<hermes home>/scripts/, where cron script jobs must live; plugin_data_dir is <hermes home>/plugin-data/<id>."""
+    return data_dir().parent.parent / "scripts"
+
+
 class Store:
-    """JSON state file, replaced atomically so a cron tick and a tool call never see half a write."""
+    """JSON state file, replaced atomically so a cron tick and a tool call never see half a write.
+
+    Read-modify-write callers hold locked(): the alerts cron job and a chat tool call can run a round at the
+    same moment, and without the lock one of them would drop the other's heartbeat or failure count.
+    """
 
     def __init__(self, path: Path):
         self.path = path
+
+    @contextmanager
+    def locked(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.path.with_suffix(".lock"), "a+") as fh:
+            if fcntl is not None:
+                fcntl.flock(fh, fcntl.LOCK_EX)
+            elif msvcrt is not None:
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                if fcntl is not None:
+                    fcntl.flock(fh, fcntl.LOCK_UN)
+                elif msvcrt is not None:
+                    fh.seek(0)
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
 
     def load(self) -> dict:
         try:
@@ -76,15 +111,18 @@ class Watch:
 
     def check(self, now: float | None = None) -> tuple[Round, dict[str, Target]]:
         now = time.time() if now is None else now
-        state = self.store.load()
-        targets = {**load_targets(self.targets_path), **heartbeat_targets(state)}
-        rnd = check_round(targets, state, probe=heartbeat_probe(state, now), now=now)
-        self.store.save(state)
+        configured = load_targets(self.targets_path)
+        with self.store.locked():
+            state = self.store.load()
+            targets = {**configured, **heartbeat_targets(state)}
+            rnd = check_round(targets, state, probe=heartbeat_probe(state, now), now=now)
+            self.store.save(state)
         return rnd, targets
 
     def heartbeat(self, name: str, every_minutes: int = 60, now: float | None = None) -> dict:
-        state = self.store.load()
         entry = {"last": time.time() if now is None else now, "every_minutes": max(1, int(every_minutes))}
-        state.setdefault("heartbeats", {})[name] = entry
-        self.store.save(state)
+        with self.store.locked():
+            state = self.store.load()
+            state.setdefault("heartbeats", {})[name] = entry
+            self.store.save(state)
         return entry

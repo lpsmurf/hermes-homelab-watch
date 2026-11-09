@@ -1,7 +1,7 @@
 """Homelab Watch — read-only monitoring of your home network, servers, sites and agents.
 
-Tools answer "is everything OK at home?"; `hermes homelab tick` prints only what changed, so a
-no_agent cron job runs it every minute and delivers alerts without spending model tokens.
+Tools answer "is everything OK at home?"; `/homelab alerts on` creates a no_agent cron job that posts only
+what changed each minute, without spending model tokens (see alerts.py).
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import schemas
+from . import alerts, schemas
 from .report import alert_text, spoken_summary, status_payload
-from .service import Watch
+from .service import Watch, scripts_dir
 from .targets import TargetsError
 from .tools import make_handlers
 
@@ -66,11 +66,23 @@ def register(ctx) -> None:
     ctx.register_cli_command("homelab", "Homelab Watch: check your home network and devices",
                              _cli_setup, run_cli)
 
+    def slash_alerts(words: list[str]) -> str:
+        action = words[0] if words else "status"
+        if action == "on":
+            return alerts.enable(ctx.dispatch_tool, get_watch(), scripts_dir(), words[1] if len(words) > 1 else "")
+        if action == "off":
+            return alerts.disable(ctx.dispatch_tool, scripts_dir())
+        return alerts.status(ctx.dispatch_tool)
+
     def slash(raw_args: str = "", **_) -> str:
+        words = raw_args.split()
         try:
+            if words[:1] == ["alerts"]:
+                return slash_alerts(words[1:])
             rnd, targets = get_watch().check()
         except TargetsError as exc:
             return f"Homelab Watch: {exc}"
         return spoken_summary(rnd, targets)
 
-    ctx.register_command("homelab", slash, description="Check the homelab now")
+    ctx.register_command("homelab", slash, description="Check the homelab now, or manage alerts",
+                         args_hint="[alerts on [deliver] | alerts off | alerts]")

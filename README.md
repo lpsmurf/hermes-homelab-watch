@@ -41,10 +41,30 @@ down, so one dropped packet does not page you.
 
 Also: `/homelab` in any chat, and `hermes homelab check|tick|json|init`.
 
+## What it touches
+
+Reads only: the URLs, hosts and ports in your `targets.yaml`. Writes only: its state in the plugin data
+folder, and, when you turn alerts on, one script in `scripts/` plus one cron job. No telemetry, no
+third-party services, no credentials.
+
 ## Alerts
 
-`hermes homelab tick` prints only incidents that opened or resolved since the last run, and nothing
-otherwise, so a `no_agent` cron job can run it every minute and deliver alerts without spending tokens.
+```
+/homelab alerts on telegram     # or discord, slack, local, platform:chat_id … (default: this chat)
+/homelab alerts                 # is it on?
+/homelab alerts off
+```
+
+`alerts on` writes `homelab_watch_tick.py` into your profile's `scripts/` folder and creates a cron job
+named `homelab-watch alerts` through Hermes' own `cronjob_manage` tool (so it goes through your normal
+approvals and shows in `hermes cron list`). It is a `no_agent` job: every minute it runs one check round
+and posts only incidents that opened or resolved. A quiet minute sends nothing and no model is called.
+If `targets.yaml` breaks, the job fails and Hermes delivers the failure instead of going silent.
+
+The job runs the script with Hermes' Python outside the plugin loader, so it also works when plugins run
+in the isolated plugin host. Cron jobs need the gateway running (`hermes gateway install`).
+
+`hermes homelab tick` does the same from a shell.
 
 ## Development
 
@@ -57,7 +77,6 @@ hermes plugins validate .
 
 ## Roadmap
 
-- Alerts cron job set up by `hermes homelab alerts on`
 - Hermes Desktop status-bar pane
 - Home Assistant bridge: targets as HA sensors, for dashboards, automations and Assist voice
 - Works with [hermes-voice](https://github.com/majorminorlabs/hermes-voice): its `safe` tool set can use
