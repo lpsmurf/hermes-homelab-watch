@@ -139,6 +139,27 @@ Only with an explicit yes, and only on their own network.
    printer" is a good one. Drop anything they do not recognise rather than guessing.
 5. Set `parent: <router id>` on all of them and verify.
 
+## Always ask what the scan missed
+
+A scan only finds what answers right now, on this one network. Never present the list as complete.
+After showing what you found, ask plainly what else they want watched, and prompt with the usual gaps:
+
+- **Things that were switched off** when you looked: a desktop, a backup NAS, a 3D printer, a laptop.
+- **Things that ignore ping or hide their ports**: many printers, cameras, smart plugs and TVs answer
+  nothing until you name the right port. Ask for the make, then try its web page.
+- **Anything not on this network**: a VPS, a Raspberry Pi at a relative's house, a work machine, a box
+  reachable only over Tailscale or a VPN, a server at a hosting provider.
+- **Websites and APIs**, which no LAN scan will ever turn up. Ask for their domains, including ones they
+  run for clients.
+- **Things on another subnet or VLAN**, for example a guest or IoT network the scan could not reach.
+- **Services inside a machine you already added**: the NAS is up, but is Plex, Immich or the database
+  behind it up? Each deserves its own entry with the machine as its `parent`.
+
+Ask it as one open question, for example: "That is everything that answered. Anything else you want
+watched — something switched off right now, a VPS, a website, or a service running inside one of these?"
+
+Then add whatever they name the same way: address, check, parent, verify.
+
 ## Afterwards
 
 - Alerts: `/homelab alerts on telegram` posts only when an incident opens or resolves.
