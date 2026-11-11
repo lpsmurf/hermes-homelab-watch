@@ -135,9 +135,15 @@ are **API-equivalent dollars**: what the same tokens cost at published list pric
 chat is never switched, since that would break Hermes' per-conversation prompt cache. Each subagent task gets
 one question: *can a small, fast model do this as well as a frontier model?*
 
-- **Judge:** Jev, if you add your own TypeSafe key in plugin settings; otherwise Hermes' own LLM through the
-  **Homelab Watch route judge** auxiliary task (Settings → Models → Auxiliary; pick a cheap model); otherwise
-  local rules. The judge's own cost is subtracted from the savings.
+- **Judge:** by default it is **your own Hermes model**, through the **Homelab Watch route judge** auxiliary
+  task (Settings → Models → Auxiliary — point it at a cheap model). Nothing to sign up for, no key, no extra
+  bill. If that model is unavailable it falls back to local keyword rules. The judge's own cost is
+  subtracted from the savings, so the number stays honest.
+- **Optional:** if you already have a [TypeSafe](https://typesafe.ai) account, put your own key in plugin
+  settings and Jev judges instead — it is cheaper per call and purpose-built for this kind of typed
+  decision. TypeSafe is a paid API with no free tier, this plugin's author gets nothing from your signing
+  up, and the router works perfectly well without it. Turning it on means each subagent task's goal and
+  context (up to 4,000 characters) is sent to `api.typesafe.ai`.
 - **Shadow by default:** it logs "could run cheaper" and changes nothing. `/homelab route live` moves the tasks
   the judge clears (p ≥ `router_threshold`, default 0.85) to `router_cheap_provider`/`router_cheap_model`.
   Any judge failure keeps the normal route; it never refuses a task.

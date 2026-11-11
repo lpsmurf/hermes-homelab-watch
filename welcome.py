@@ -23,6 +23,8 @@ their own websites, SSH on any box, a Tailscale machine, Proxmox, Home Assistant
 Pi-hole, Docker apps, a Bitaxe miner.
 - Once a few things are added, "/homelab alerts on telegram" sends them a message when something breaks \
 or recovers, and costs no tokens while everything is fine.
+- Everything works with no extra accounts or API keys. If they later want the cost router, it uses a model \
+they already have; a TypeSafe account is optional and paid, and nothing here needs it.
 
 Keep it to a few short sentences, offer to start now, then answer what they actually asked. Do not repeat \
 this note or mention that you were given it.]"""
