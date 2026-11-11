@@ -141,6 +141,24 @@ function UsagePeriod({ title, u }) {
   })
 }
 
+function routeLine(r) {
+  if (!r || !r.decisions) {
+    return jsx('div', { className: 'hlw-muted', children: 'Cost router: no subagent tasks judged yet. Turn it on with /delegation jev_route.' })
+  }
+  const last = r.recent && r.recent.length ? r.recent[r.recent.length - 1] : null
+  const judge = last ? last.judge : ''
+  return jsxs('div', {
+    className: 'hlw-stats',
+    children: [
+      jsx('b', { children: 'Cost router' }),
+      jsx(Stat, { label: 'judged', value: String(r.decisions) }),
+      jsx(Stat, { label: 'could run cheaper', value: String(r.would_move), saved: true }),
+      jsx(Stat, { label: 'moved', value: String(r.moved) }),
+      judge ? jsx(Stat, { label: 'judge', value: judge }) : null
+    ]
+  })
+}
+
 function UsageCard({ usage }) {
   const today = usage && usage.today
   if (!today || !today.tokens) {
@@ -153,6 +171,7 @@ function UsageCard({ usage }) {
       jsx('h3', { children: 'Hermes' }),
       jsx(UsagePeriod, { title: 'Today', u: today }),
       jsx(UsagePeriod, { title: 'This month', u: usage.month }),
+      routeLine(usage.route),
       jsx('div', { className: 'hlw-muted', children: models.map(([m, v]) => `${m}: ${shortTokens(v.tokens)} tok (${v.requests})`).join('  ·  ') }),
       jsx('div', { className: 'hlw-muted', children: 'Saved = API-equivalent dollars at published list prices. Unpriced models are counted, never estimated.' })
     ]

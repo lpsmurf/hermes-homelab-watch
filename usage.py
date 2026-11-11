@@ -108,6 +108,8 @@ def record(state: dict, *, model: str, provider: str, base_url: str, usage: Any,
             day["unpriced_tokens"] += tokens
         else:
             day["saved_by_subscription"] += actual
+            if baseline is not None and baseline > actual:  # a cheaper model on the same plan frees plan quota
+                day["saved_by_cheaper_model"] += baseline - actual
     elif kind == "free":
         if baseline is None:
             day["unpriced_tokens"] += tokens

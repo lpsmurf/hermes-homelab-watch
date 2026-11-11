@@ -12,7 +12,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import alerts, schemas, usage
+from . import alerts, router, schemas, usage
 from .report import alert_text, spoken_summary, status_payload, usage_sentence
 from .service import Watch, scripts_dir
 from .targets import TargetsError
@@ -54,6 +54,33 @@ def register(ctx) -> None:
             logger.debug("homelab-watch: usage not recorded", exc_info=True)
 
     ctx.register_hook("post_api_request", on_api_request)
+
+    def router_settings() -> router.RouterSettings:
+        mode = ctx.get_config("router_mode", default="shadow") or "shadow"
+        return router.RouterSettings(
+            mode=mode if mode in ("shadow", "live", "off") else "shadow",
+            cheap_provider=ctx.get_config("router_cheap_provider", default="") or "",
+            cheap_model=ctx.get_config("router_cheap_model", default="") or "",
+            threshold=float(ctx.get_config("router_threshold", default=0.85) or 0.85))
+
+    def verdict_for(text: str) -> router.Verdict:
+        from agent.secret_scope import get_secret
+        return router.judge(text, jev_key=get_secret("TYPESAFE_API_KEY") or "", llm=ctx.llm,
+                            price=lambda model, use: usage.cost(prices, model, use))
+
+    try:
+        ctx.register_auxiliary_task(router.AUX_TASK, display_name="Homelab Watch route judge",
+                                    description="Judges whether a subagent task can run on a cheaper model. "
+                                                "Pick a small, cheap model here.")
+    except Exception:  # without it the Hermes judge uses the active model, or the router falls back to rules
+        logger.warning("homelab-watch: route judge task not registered", exc_info=True)
+    try:
+        from agent.delegation_provider import DelegationProvider
+        ctx.register_delegation_provider(router.make_provider(
+            DelegationProvider, get_settings=router_settings, verdict_for=verdict_for,
+            record=lambda entry: get_watch().record_route(entry)))
+    except Exception:  # an older Hermes without these seams still gets the monitor
+        logger.warning("homelab-watch: cost router not registered", exc_info=True)
 
     handlers = make_handlers(get_watch)
     for schema in (schemas.HOMELAB_STATUS, schemas.HOMELAB_HEARTBEAT):
@@ -97,15 +124,27 @@ def register(ctx) -> None:
             return alerts.disable(ctx.dispatch_tool, scripts_dir())
         return alerts.status(ctx.dispatch_tool)
 
+    def slash_route(words: list[str]) -> str:
+        if words and words[0] in ("live", "shadow", "off"):
+            ctx.set_config("router_mode", words[0])
+        rs = router_settings()
+        led = get_watch().usage_summary().get("route", {})
+        cheap = rs.cheap_model or "no cheap model set (router_cheap_model)"
+        return (f"Cost router: {rs.mode}, cheap model {cheap}, threshold {rs.threshold}. "
+                f"{led.get('would_move', 0)} of {led.get('decisions', 0)} subagent tasks could run cheaper; "
+                f"{led.get('moved', 0)} did. Select it with /delegation {router.BACKEND}.")
+
     def slash(raw_args: str = "", **_) -> str:
         words = raw_args.split()
         try:
             if words[:1] == ["alerts"]:
                 return slash_alerts(words[1:])
+            if words[:1] == ["route"]:
+                return slash_route(words[1:])
             rnd, targets = get_watch().check()
         except TargetsError as exc:
             return f"Homelab Watch: {exc}"
         return " ".join(filter(None, [spoken_summary(rnd, targets), usage_sentence(get_watch().usage_summary())]))
 
     ctx.register_command("homelab", slash, description="Check the homelab now, or manage alerts",
-                         args_hint="[alerts on [deliver] | alerts off | alerts]")
+                         args_hint="[alerts on [deliver] | alerts off | route live|shadow|off]")

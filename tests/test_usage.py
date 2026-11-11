@@ -84,3 +84,10 @@ def test_usage_sentence():
     state = {}
     rec(state, "big-model", provider="openai-codex")
     assert usage_sentence(usage.summary(state, NOON)) == "Hermes used 2.0M tokens today and saved about $60.00 at API prices."
+
+
+def test_cheaper_model_on_a_subscription_counts_both_savings():
+    state = {}
+    rec(state, "small-model", provider="openai-codex")
+    t = today(state)
+    assert t["saved_by_subscription"] == 6 and t["saved_by_cheaper_model"] == 54 and t["saved_total"] == 60

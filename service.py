@@ -16,7 +16,7 @@ except ImportError:  # Windows
     fcntl = None
     import msvcrt
 
-from . import usage
+from . import router, usage
 from .engine import Round, check_round, rollup
 from .probes import ProbeResult, run_probe
 from .targets import Target, load_targets
@@ -144,7 +144,16 @@ class Watch:
     def usage_summary(self, now: float | None = None) -> dict:
         with self.store.locked():
             state = self.store.load()
-        return usage.summary(state, now)
+        return {**usage.summary(state, now), "route": state.get("route", {})}
+
+    def record_route(self, entry: dict) -> None:
+        if not entry:
+            return
+        with self.store.locked():
+            state = self.store.load()
+            router.add_decision(state, entry)
+            usage.add_judge_cost(state, entry.get("judge_cost", 0.0))
+            self.store.save(state)
 
     def heartbeat(self, name: str, every_minutes: int = 60, now: float | None = None) -> dict:
         entry = {"last": time.time() if now is None else now, "every_minutes": max(1, int(every_minutes))}

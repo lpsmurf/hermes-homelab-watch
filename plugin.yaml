@@ -3,9 +3,10 @@ version: 0.1.0
 manifest_version: 2
 api_version: 1
 description: >-
-  Read-only monitoring for your homelab: router, servers, websites, a Bitaxe miner and your own cron
-  jobs. Failures roll up to the root cause, so a router outage is one alert, not ten. Ask Hermes
-  "is everything OK at home?" from chat or voice; alerts arrive through a no_agent cron job.
+  Your homelab, your agents and your agent's bill in one Desktop status chip. Read-only checks of your router,
+  servers, websites, a Bitaxe miner and your cron jobs, with failures rolled up to the root cause; token-free
+  alerts; per-day LLM token and API-equivalent savings counts; and a shadow-first delegation router that sends
+  simple subagent tasks to a cheaper model when a judge (Jev or your own Hermes model) clears them.
 author: lpsmurf (HFSP Labs)
 license: MIT
 homepage: https://github.com/lpsmurf/hermes-homelab-watch
@@ -26,6 +27,32 @@ config_schema:
     default: []
     label: Extra subscription providers
     description: Provider names you pay for with a flat plan (openai-codex and copilot are built in).
+  router_mode:
+    type: str
+    choices: [shadow, live, off]
+    default: shadow
+    label: Cost router mode
+    description: shadow judges subagent tasks and logs what could move; live moves them. Select the router with /delegation jev_route.
+  router_cheap_provider:
+    type: str
+    default: ""
+    label: Cheap provider
+    description: Provider for tasks the judge clears, as in `hermes model` (e.g. openrouter).
+  router_cheap_model:
+    type: str
+    default: ""
+    label: Cheap model
+    description: Model id for tasks the judge clears. Empty keeps every task on the normal route.
+  router_threshold:
+    type: float
+    default: 0.85
+    label: Judge threshold
+    description: Minimum probability (0-1) that the cheap model will do as well.
+  typesafe_api_key:
+    type: secret
+    env: TYPESAFE_API_KEY
+    label: TypeSafe API key (optional)
+    description: Uses Jev as the router's judge. Without it, the "Homelab Watch route judge" auxiliary model judges.
   prices:
     type: dict
     default: {}
