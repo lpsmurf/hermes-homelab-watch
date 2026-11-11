@@ -2,6 +2,7 @@ name: homelab-watch
 version: 0.1.0
 manifest_version: 2
 api_version: 1
+requires_hermes: ">=0.23.0"
 description: >-
   Your homelab, your agents and your agent's bill in one Desktop status chip. Read-only checks of your router,
   servers, websites, a Bitaxe miner and your cron jobs, with failures rolled up to the root cause; token-free
