@@ -93,3 +93,21 @@ def test_missed_heartbeat_raises_incident(tmp_path):
 def test_status_tool_reports_missing_targets_file(tmp_path):
     handlers = make_handlers(lambda: Watch(tmp_path / "nope.yaml", tmp_path / "state.json"))
     assert "no targets file" in json.loads(handlers["homelab_status"]({}))["error"]
+
+
+def test_latest_reuses_a_fresh_round_and_rechecks_a_stale_one(tmp_path):
+    (tmp_path / "targets.yaml").write_text(TARGETS)
+    watch = Watch(tmp_path / "targets.yaml", tmp_path / "state.json")
+    calls = []
+    import homelab_watch.service as service
+
+    real = service.check_round
+    service.check_round = lambda *a, **k: (calls.append(1), real(*a, probe=probe_with({"site"}), now=k["now"]))[1]
+    try:
+        watch.check(now=0)
+        rnd, _ = watch.latest(now=60)  # fresh: served from state, no probes
+        assert len(calls) == 1 and rnd.statuses["site"]["status"] == PENDING
+        watch.latest(now=500)  # stale: a real round
+        assert len(calls) == 2
+    finally:
+        service.check_round = real
