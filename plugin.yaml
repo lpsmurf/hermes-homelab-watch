@@ -12,8 +12,6 @@ author: lpsmurf (HFSP Labs)
 license: MIT
 homepage: https://github.com/lpsmurf/hermes-homelab-watch
 tags: [homelab, monitoring, uptime, bitaxe, home-assistant]
-provides_skills:
-  - add-targets
 provides_tools:
   - homelab_status
   - homelab_heartbeat
