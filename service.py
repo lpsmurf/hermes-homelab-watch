@@ -19,7 +19,7 @@ except ImportError:  # Windows
 from . import router, usage
 from .engine import Round, check_round, rollup
 from .probes import ProbeResult, run_probe
-from .targets import Target, load_targets
+from .targets import Target, TargetsError, load_targets
 
 PLUGIN_ID = "homelab-watch"
 HEARTBEAT_PREFIX = "heartbeat:"
@@ -136,6 +136,22 @@ class Watch:
             return self.check(now=now)
         statuses = {tid: statuses[tid] for tid in targets}
         return Round(statuses=statuses, incidents=rollup(targets, statuses), opened=[], resolved=[]), targets
+
+    def configured(self) -> bool:
+        try:
+            return bool(load_targets(self.targets_path))
+        except TargetsError:
+            return False
+
+    def take_flag(self, name: str) -> bool:
+        """True the first time only; the flag is stored so a once-per-install message stays once."""
+        with self.store.locked():
+            state = self.store.load()
+            if state.get("flags", {}).get(name):
+                return False
+            state.setdefault("flags", {})[name] = True
+            self.store.save(state)
+        return True
 
     def record_usage(self, **request) -> None:
         with self.store.locked():

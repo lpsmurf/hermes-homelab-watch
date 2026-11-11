@@ -91,3 +91,15 @@ def test_cheaper_model_on_a_subscription_counts_both_savings():
     rec(state, "small-model", provider="openai-codex")
     t = today(state)
     assert t["saved_by_subscription"] == 6 and t["saved_by_cheaper_model"] == 54 and t["saved_total"] == 60
+
+
+def test_welcome_is_offered_once_and_not_when_configured(tmp_path):
+    from homelab_watch import welcome
+    from homelab_watch.service import Watch
+    (tmp_path / "targets.yaml").write_text("targets: []")
+    w = Watch(tmp_path / "targets.yaml", tmp_path / "state.json")
+    assert w.configured() is False                      # an empty list is nothing to watch
+    assert w.take_flag(welcome.FLAG) is True            # first turn: greet
+    assert w.take_flag(welcome.FLAG) is False           # never again
+    (tmp_path / "targets.yaml").write_text("targets: [{id: a, name: A, check: ping, host: h}]")
+    assert w.configured() is True

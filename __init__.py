@@ -12,7 +12,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import alerts, router, schemas, usage
+from . import alerts, router, schemas, usage, welcome
 from .report import alert_text, spoken_summary, status_payload, usage_sentence
 from .service import Watch, scripts_dir
 from .targets import TargetsError
@@ -54,6 +54,18 @@ def register(ctx) -> None:
             logger.debug("homelab-watch: usage not recorded", exc_info=True)
 
     ctx.register_hook("post_api_request", on_api_request)
+
+    def on_pre_llm_call(**_):
+        """Once per install, ask Hermes to explain the plugin and offer to set it up."""
+        try:
+            watch = get_watch()
+            if watch.configured() or not watch.take_flag(welcome.FLAG):
+                return None
+            return welcome.WELCOME
+        except Exception:
+            return None
+
+    ctx.register_hook("pre_llm_call", on_pre_llm_call)
 
     skills_dir = Path(__file__).parent / "skills"
     for child in sorted(skills_dir.iterdir()) if skills_dir.is_dir() else ():

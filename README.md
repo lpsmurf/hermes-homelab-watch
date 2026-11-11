@@ -21,14 +21,65 @@ hermes homelab check
 
 Then ask Hermes: *"Is everything OK at home?"*, *"Is Plex up?"*, *"How is the miner doing?"*
 
-## Adding things to watch
+## Getting started, in plain words
 
-Ask Hermes to load the bundled skill and it will walk you through it, find the addresses, set the
-parents and verify each new target:
+Homelab Watch starts empty on purpose. It does not go looking around your network by itself, so the
+first thing to do is tell it what you care about. The quickest way is to ask Hermes.
+
+**Step 1 — install it and restart.** The restart matters: without it the background parts stay asleep.
+
+```bash
+hermes plugins install homelab-watch
+hermes plugins enable homelab-watch
+hermes gateway restart
+```
+
+The first time you talk to Hermes afterwards, it introduces the plugin and offers to set it up.
+
+**Step 2 — tell Hermes what to watch, in your own words.** You do not need to know any IP addresses.
 
 ```
-Use the homelab-watch:add-targets skill to add my NAS and the office printer.
+Use the homelab-watch:add-targets skill to add my router, my NAS and my website.
 ```
+
+Hermes loads the bundled skill and walks through it with you: it works out the addresses (it can read
+your router's address from the machine, and list devices your Mac has already talked to), picks the
+right kind of check, asks what depends on what, then tests each one and tells you the result.
+
+**Step 3 — things worth adding.** Anything with an address on your network or on the internet:
+
+| | Examples |
+|---|---|
+| Machines | a home server or NAS, a mini PC, a Raspberry Pi, a VPS, a laptop that should stay on |
+| Network gear | your router, a wifi access point, a switch, a Pi-hole or AdGuard |
+| Remote access | SSH on any box (port 22), a machine on your Tailscale network by its tailnet name |
+| Self-hosted apps | Proxmox, Home Assistant, Plex or Jellyfin, Portainer, Grafana, Immich, Nextcloud |
+| Databases and services | Postgres, MySQL, Redis, a game or Minecraft server |
+| Websites | your own sites, a client's site, anything you want to know is still up |
+| Devices | a printer, a camera, a smart plug, a 3D printer, a Bitaxe miner |
+
+A Tailscale name like `nas.tail1234.ts.net` works from anywhere you are signed in, so it keeps
+reporting when you are away from home. A plain LAN address only works at home.
+
+**Step 4 — say what depends on what.** This is the part that makes it useful. If you tell it Plex runs
+on the NAS, and the NAS sits behind the router, then when the router dies you get one message —
+"Router is down, taking 2 more with it" — instead of three separate alarms at three in the morning.
+The skill asks you this for each thing, so you do not have to think about the file.
+
+**Step 5 — turn on alerts.**
+
+```
+/homelab alerts on telegram
+```
+
+From then on your phone gets a message when something breaks and when it comes back. While everything
+is fine it sends nothing and calls no AI model, so quiet days cost you nothing.
+
+**Step 6 — day to day.** A coloured dot sits in the corner of Hermes Desktop: green, amber or red.
+Click it for the full page. Or just ask: *"is everything OK at home?"*
+
+**What it will never do.** Every check only looks. It fetches a page, knocks on a port, sends a ping,
+or asks DNS. It never logs in, never restarts anything, never changes a setting on any device.
 
 ## Targets
 

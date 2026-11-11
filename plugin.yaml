@@ -19,6 +19,7 @@ provides_tools:
   - homelab_heartbeat
 provides_hooks:
   - post_api_request
+  - pre_llm_call
 config_schema:
   baseline_model:
     type: str

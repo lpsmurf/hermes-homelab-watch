@@ -62,6 +62,35 @@ targets:
 | `timeout`, `fail_after` | override the defaults for a slow or flappy target |
 | `thresholds` | `bitaxe` only: `temp_max`, `vr_temp_max`, `hashrate_min_ghs`, `efficiency_max_jth` |
 
+## Common things people watch, and how
+
+| What | Check | Typical entry |
+|---|---|---|
+| SSH on any machine | `tcp` port 22 | `{id: vps, name: VPS, check: tcp, host: 203.0.113.10, port: 22}` |
+| A Tailscale machine | `ping` or `tcp` on its tailnet name | `{id: ts-nas, name: NAS over Tailscale, check: ping, host: nas.tail1234.ts.net}` |
+| Proxmox | `http` port 8006 | `{id: pve, name: Proxmox, check: http, url: "https://192.168.1.5:8006/"}` |
+| Home Assistant | `http` port 8123 | `{id: hass, name: Home Assistant, check: http, url: "http://192.168.1.6:8123/"}` |
+| Synology / QNAP NAS | `http` port 5000 or 5001 | `{id: nas, name: NAS, check: http, url: "http://192.168.1.20:5000/"}` |
+| Plex | `http` `/identity` on 32400 | `{id: plex, name: Plex, check: http, url: "http://192.168.1.20:32400/identity", parent: nas}` |
+| Jellyfin | `http` port 8096 | `{id: jellyfin, name: Jellyfin, check: http, url: "http://192.168.1.20:8096/", parent: nas}` |
+| Pi-hole or AdGuard | `dns` plus `http` for the admin page | `{id: pihole, name: Pi-hole, check: dns, host: example.com}` |
+| Docker app behind a port | `http` or `tcp` on that port | `{id: portainer, name: Portainer, check: http, url: "https://192.168.1.20:9443/", parent: nas}` |
+| Grafana | `http` port 3000 | `{id: grafana, name: Grafana, check: http, url: "http://192.168.1.20:3000/", parent: nas}` |
+| UniFi controller | `http` port 8443 | `{id: unifi, name: UniFi, check: http, url: "https://192.168.1.2:8443/", parent: router}` |
+| A database | `tcp` 5432, 3306, 6379 | `{id: pg, name: Postgres, check: tcp, host: 192.168.1.20, port: 5432, parent: nas}` |
+| A game or Minecraft server | `tcp` on its port | `{id: mc, name: Minecraft, check: tcp, host: 192.168.1.20, port: 25565, parent: nas}` |
+| A website | `http` on the public URL | `{id: site, name: My site, check: http, url: "https://example.com", parent: internet}` |
+| A printer or camera | `ping`, or `http` if it has a web page | `{id: printer, name: Printer, check: ping, host: 192.168.1.30, parent: router}` |
+| A Bitaxe miner | `bitaxe` | `{id: bitaxe, name: Bitaxe, check: bitaxe, host: 192.168.1.80, parent: router}` |
+
+Two notes on these:
+
+- **A self-signed certificate is fine.** Proxmox, UniFi and most NAS boxes serve HTTPS with their own
+  certificate. The check follows what the server returns, so it reports `up` as long as the page answers.
+- **Tailscale names work anywhere the machine is signed in.** A tailnet name like `nas.tail1234.ts.net`
+  reaches the box from any network, so it keeps working when the user is away from home. Use a plain LAN
+  address instead when they only care about it from home.
+
 ## Getting `parent` right
 
 This is what makes the plugin worth using. When a target goes down, everything beneath it is folded
