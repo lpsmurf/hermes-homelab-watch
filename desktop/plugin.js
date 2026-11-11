@@ -1,6 +1,7 @@
 // Homelab Watch — Desktop half. A status-bar chip (green / amber / red rollup) and a /homelab page that
 // lists every target. Data comes from dashboard/plugin_api.py through ctx.rest; nothing here probes devices.
 import { atom, host, ROUTES_AREA, SIDEBAR_NAV_AREA, STATUSBAR_AREAS, useValue } from '@hermes/plugin-sdk'
+import { useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 const ID = 'homelab-watch'
@@ -90,6 +91,13 @@ const CSS = `
 .hlw-table .num{text-align:right;font-family:var(--mono);font-size:12.5px;white-space:nowrap}
 .hlw-table th.num{font:600 11px/1 var(--mono)}
 .hlw-table td.mono{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.hlw-btn.ghost{background:var(--sunk);color:var(--ink);border:1px solid var(--line)}
+.hlw-btns{display:flex;gap:10px;flex-wrap:wrap}
+.hlw-scan{display:flex;flex-direction:column;gap:12px}
+.hlw-scan p{margin:0;font-size:13.5px;color:var(--ink-dim);max-width:70ch}
+.hlw-scan input[type=text]{background:var(--sunk);border:1px solid var(--line);border-radius:3px;color:var(--ink);font:13px var(--sans);padding:6px 8px;width:100%;min-width:0}
+.hlw-scan input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.hlw-err{color:var(--crit);font-size:13px}
 .hlw-foot{font:400 12px/1.7 var(--mono);color:var(--muted)}
 `
 
@@ -321,9 +329,78 @@ function Targets({ s, byId }) {
   })
 }
 
-function Page({ refresh }) {
+
+const KIND = { http: 'web page', tcp: 'port 22', ping: 'ping only' }
+
+function ScanPanel({ ctx, onDone }) {
+  const [st, setSt] = useState({ phase: 'plan' })
+  const [rows, setRows] = useState([])
+  const go = async (phase, run) => {
+    setSt({ phase })
+    try { return await run() } catch (e) { setSt({ phase: 'error', msg: String((e && e.message) || e) }) }
+  }
+  const plan = () => go('planning', async () => {
+    const r = await ctx.rest('/scan/plan')
+    setSt(r.error ? { phase: 'error', msg: r.error } : { phase: 'confirm', nets: r.networks })
+  })
+  const scan = plan_ => go('scanning', async () => {
+    const r = await ctx.rest('/scan', { method: 'POST', body: { range: plan_.range }, timeoutMs: 120000 })
+    if (r.error) return setSt({ phase: 'error', msg: r.error })
+    setRows(r.devices.map(d => ({ ...d, pick: !d.known, name: d.name || (d.gateway ? 'Router' : '') })))
+    setSt({ phase: 'results', plan: plan_, found: r })
+  })
+  const add = () => go('adding', async () => {
+    const picked = rows.filter(r => r.pick && !r.known).map(r => ({ ip: r.ip, name: r.name || r.ip, check: r.check, url: r.url, port: r.port, gateway: r.gateway }))
+    const r = await ctx.rest('/scan/add', { method: 'POST', body: { devices: picked, gateway: st.found.gateway }, timeoutMs: 60000 })
+    if (r.error) return setSt({ phase: 'error', msg: r.error })
+    setSt({ phase: 'done', added: r.added }); onDone()
+  })
+  const upd = (i, patch) => setRows(rows.map((r, k) => (k === i ? { ...r, ...patch } : r)))
+  const close = jsx('button', { type: 'button', className: 'hlw-btn ghost', onClick: onDone, children: 'Close' })
+
+  if (st.phase === 'plan') {
+    return jsxs('div', { className: 'hlw-card hlw-scan', children: [
+      jsx('h2', { children: 'Scan my network' }),
+      jsx('p', { children: 'Looks for devices on the network this computer is on, so you can pick which ones to watch. It only looks: a ping, a knock on a few common ports, and the list of devices this computer already knows. It never logs in or changes anything.' }),
+      jsxs('div', { className: 'hlw-btns', children: [jsx('button', { type: 'button', className: 'hlw-btn', onClick: plan, children: 'Continue' }), close] })] })
+  }
+  if (st.phase === 'planning' || st.phase === 'scanning' || st.phase === 'adding') {
+    const msg = { planning: 'Checking your network…', scanning: 'Scanning. This takes about 15 seconds.', adding: 'Adding and checking…' }[st.phase]
+    return jsxs('div', { className: 'hlw-card hlw-scan', children: [jsx('h2', { children: 'Scan my network' }), jsx('p', { children: msg })] })
+  }
+  if (st.phase === 'confirm') {
+    return jsxs('div', { className: 'hlw-card hlw-scan', children: [
+      jsx('h2', { children: st.nets.length > 1 ? 'Which network?' : 'Ready to scan' }),
+      jsx('p', { children: 'Only your own home or office network is ever scanned, one at a time, and VPN tunnels are skipped. Each scan pings the addresses in that range and knocks on a few common ports.' }),
+      jsxs('div', { className: 'hlw-btns', children: [...st.nets.map(n => jsx('button', { type: 'button', className: 'hlw-btn', onClick: () => scan(n), children: `Scan ${n.range} (${n.iface})` }, n.range)), close] })] })
+  }
+  if (st.phase === 'error') {
+    return jsxs('div', { className: 'hlw-card hlw-scan', children: [jsx('h2', { children: 'Scan my network' }), jsx('p', { className: 'hlw-err', children: st.msg }), jsx('div', { className: 'hlw-btns', children: close })] })
+  }
+  if (st.phase === 'done') {
+    return jsxs('div', { className: 'hlw-card hlw-scan', children: [jsx('h2', { children: 'Added' }), jsx('p', { children: `${st.added} device${st.added === 1 ? '' : 's'} added and checked. They now appear in the table and in your alerts.` }), jsx('div', { className: 'hlw-btns', children: close })] })
+  }
+  const f = st.found
+  const chosen = rows.filter(r => r.pick && !r.known).length
+  return jsxs('div', { className: 'hlw-card hlw-scan', children: [
+    jsx('h2', { children: `Found ${rows.length} device${rows.length === 1 ? '' : 's'} in ${f.range}` }),
+    jsx('p', { children: 'Tick what you want watched and give each a name you will recognise. Anything switched off, behind a firewall, or on another network will not show up here; you can add it by asking Hermes, or by using the add-targets skill.' }),
+    jsx('div', { className: 'scroll', children: jsxs('table', { className: 'hlw-table', children: [
+      jsx('thead', { children: jsxs('tr', { children: ['', 'Name', 'Address', 'Looks like', 'Will check'].map((h, n) => jsx('th', { children: h }, n)) }) }),
+      jsx('tbody', { children: rows.map((r, i) => jsxs('tr', { key: r.ip, children: [
+        jsx('td', { children: r.known ? jsx(Pill, { tone: 'up', children: 'watched' }) : jsx('input', { type: 'checkbox', checked: r.pick, onChange: e => upd(i, { pick: e.target.checked }), 'aria-label': `Watch ${r.ip}` }) }),
+        jsx('td', { children: r.known ? r.name || r.ip : jsx('input', { type: 'text', value: r.name, placeholder: r.ip, onChange: e => upd(i, { name: e.target.value }), 'aria-label': `Name for ${r.ip}` }) }),
+        jsx('td', { className: 'mono', children: r.ip + (r.gateway ? ' (router)' : '') }),
+        jsx('td', { children: r.label }),
+        jsx('td', { className: 'mono', children: KIND[r.check] || r.check })] })) })] }) }),
+    jsxs('div', { className: 'hlw-btns', children: [
+      jsx('button', { type: 'button', className: 'hlw-btn', disabled: !chosen, onClick: add, children: chosen ? `Add ${chosen} selected` : 'Select something to add' }), close] })] })
+}
+
+function Page({ refresh, ctx }) {
   const s = useValue(status)
   const checking = useValue(busy)
+  const [scanning, setScanning] = useState(false)
   const byId = Object.fromEntries(s.targets.map(t => [t.id, t]))
   const nameOf = id => (byId[id] ? byId[id].name : id)
   const n = s.incidents.length
@@ -347,10 +424,11 @@ function Page({ refresh }) {
                   jsx('div', { className: 'hlw-summary', children: s.error || s.summary || 'Checking…' })
                 ]
               }),
-              jsx('button', { type: 'button', className: 'hlw-btn', disabled: checking, onClick: () => refresh(true), children: checking ? 'Checking…' : 'Check now' })
+              jsxs('div', { className: 'hlw-btns', children: [jsx('button', { type: 'button', className: 'hlw-btn ghost', onClick: () => setScanning(true), children: 'Scan my network' }), jsx('button', { type: 'button', className: 'hlw-btn', disabled: checking, onClick: () => refresh(true), children: checking ? 'Checking…' : 'Check now' })] })
             ]
           }),
           s.overall === 'unconfigured' ? jsx('div', { className: 'hlw-sub', children: 'Run `hermes homelab init`, then edit targets.yaml.' }) : null,
+          scanning ? jsx(ScanPanel, { ctx, onDone: () => { setScanning(false); refresh(true) } }) : null,
           jsx(StatGrid, { s }),
           jsx(Incidents, { s, nameOf }),
           jsx(Targets, { s, byId }),
@@ -389,7 +467,7 @@ export default {
 
     ctx.registerMany([
       { id: 'chip', area: STATUSBAR_AREAS.right, order: 115, render: () => jsx(Chip, {}) },
-      { id: 'page', area: ROUTES_AREA, data: { path: PATH }, render: () => jsx(Page, { refresh }) },
+      { id: 'page', area: ROUTES_AREA, data: { path: PATH }, render: () => jsx(Page, { refresh, ctx }) },
       { id: 'nav', area: SIDEBAR_NAV_AREA, data: { path: PATH, label: 'Homelab', codicon: 'pulse' } }
     ])
   }

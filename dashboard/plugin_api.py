@@ -20,7 +20,8 @@ _tick._load_package(_ROOT)
 
 from homelab_watch.report import spoken_summary, status_payload, usage_sentence  # noqa: E402
 from homelab_watch.service import PLUGIN_ID, Watch  # noqa: E402
-from homelab_watch.targets import TargetsError  # noqa: E402
+from homelab_watch import scan as netscan  # noqa: E402
+from homelab_watch.targets import TargetsError, load_targets  # noqa: E402
 
 router = APIRouter()
 
@@ -50,3 +51,47 @@ def status() -> dict:
 @router.post("/check")
 def check() -> dict:
     return _respond(lambda w: w.check())
+
+
+def _known_hosts(watch: Watch) -> set[str]:
+    try:
+        return {h for tg in load_targets(watch.targets_path).values() for h in (tg.host,) if h}
+    except TargetsError:
+        return set()
+
+
+@router.get("/scan/plan")
+def scan_plan() -> dict:
+    """The real local networks a scan could cover, so the page can ask first. Sends nothing to the network."""
+    try:
+        return {"networks": netscan.local_networks()}
+    except TargetsError as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/scan")
+def scan_network(body: dict) -> dict:
+    """Scan one of the networks the plan listed. Anything else is refused."""
+    try:
+        chosen = next((n for n in netscan.local_networks() if n["range"] == body.get("range")), None)
+        if chosen is None:
+            return {"error": "That is not one of this computer's networks."}
+        import ipaddress
+        return netscan.scan(_known_hosts(_watch()), ipaddress.ip_network(chosen["range"]), chosen["gateway"])
+    except TargetsError as exc:
+        return {"error": str(exc)}
+
+
+@router.post("/scan/add")
+def scan_add(body: dict) -> dict:
+    """Append the devices the user ticked to targets.yaml, then check them once."""
+    picks = [p for p in body.get("devices", []) if isinstance(p, dict) and p.get("ip") and p.get("check")]
+    if not picks:
+        return {"error": "Nothing selected."}
+    watch = _watch()
+    try:
+        netscan.add_to_file(watch.targets_path, picks, str(body.get("gateway") or ""))
+        rnd, _ = watch.check()
+    except TargetsError as exc:
+        return {"error": str(exc)}
+    return {"added": len(picks), "overall": rnd.overall}

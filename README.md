@@ -46,6 +46,12 @@ Hermes loads the bundled skill and walks through it with you: it works out the a
 your router's address from the machine, and list devices your Mac has already talked to), picks the
 right kind of check, asks what depends on what, then tests each one and tells you the result.
 
+**Prefer clicking?** On the **Homelab** page, press **Scan my network**. It shows which network it will
+look at, asks first, then lists the devices it finds with a tick-box and a name field each. Tick what you
+want watched, name them, and press **Add**. It skips VPN tunnels so it scans your real home network, and it
+only ever scans a private network, one at a time. A scan cannot see devices that are switched off or on
+another network, so for those just ask Hermes.
+
 **Step 3 — things worth adding.** Anything with an address on your network or on the internet:
 
 | | Examples |
