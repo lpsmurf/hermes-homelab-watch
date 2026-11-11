@@ -201,4 +201,14 @@ hermes plugins validate .
 - Works with [hermes-voice](https://github.com/majorminorlabs/hermes-voice): its `safe` tool set can use
   `homelab_status` as-is
 
+## Where this came from
+
+Homelab Watch grew out of **AX**, a harness its author runs across several agent CLIs: the targets file,
+the dependency rollup and the honest-numbers rule (a model with no published price is never given an
+invented one) are all AX ideas, rebuilt as a Hermes plugin. AX itself is not public yet and is released
+soon.
+
+**Want to hear when AX lands, or when Homelab Watch gets its Home Assistant bridge?**
+Updates go out at [hfsp.xyz](https://hfsp.xyz) — no spam, just a note when there is something to run.
+
 MIT licensed. Built by HFSP Labs (info@hfsp.xyz).
