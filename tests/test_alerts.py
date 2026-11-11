@@ -60,6 +60,16 @@ def test_generated_script_is_silent_until_something_changes(tmp_path):
     assert second.returncode == 0 and second.stdout == ""  # still down: nothing to post
 
 
+def test_looking_does_not_eat_the_alert(tmp_path):
+    watch = make_watch(tmp_path)
+    watch.check()   # Check now, the chat tool or the CLI looked first
+    watch.latest()
+    script = tmp_path / alerts.SCRIPT_NAME
+    script.write_text(alerts.render_script(watch))
+    proc = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=30)
+    assert "🔴 Closed port is down" in proc.stdout
+
+
 def test_generated_script_fails_loudly_on_broken_targets(tmp_path):
     watch = make_watch(tmp_path)
     watch.targets_path.write_text("targets: [{id: x, check: nope}]")

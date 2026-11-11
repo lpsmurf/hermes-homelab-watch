@@ -46,7 +46,7 @@ def find_job(dispatch) -> dict | None:
 
 
 def enable(dispatch, watch: Watch, scripts_dir: Path, deliver: str = "") -> str:
-    watch.check()  # fail now on a broken targets file, and seed state so the first tick is not a flood
+    watch.check()  # fail now on a broken targets file; anything already down is announced by the first tick
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / SCRIPT_NAME).write_text(render_script(watch), encoding="utf-8")
     existing = find_job(dispatch)

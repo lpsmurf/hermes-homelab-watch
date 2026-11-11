@@ -32,7 +32,7 @@ def main(plugin_dir: str, targets_path: str, state_path: str) -> int:
     from homelab_watch.targets import TargetsError
 
     try:
-        rnd, targets = Watch(Path(targets_path), Path(state_path)).check()
+        rnd, targets = Watch(Path(targets_path), Path(state_path)).check(alerts=True)
     except TargetsError as exc:
         print(f"Homelab Watch cannot run: {exc}", file=sys.stderr)
         return 2

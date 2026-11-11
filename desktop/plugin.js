@@ -160,10 +160,11 @@ function Chip() {
 function metricsText(m) {
   if (!m || !Object.keys(m).length) return ''
   const parts = []
-  if (m.hashrate_ghs != null) parts.push(`${m.hashrate_ghs} GH/s`)
-  if (m.temp_c != null) parts.push(`${m.temp_c}°C`)
-  if (m.vr_temp_c != null) parts.push(`VR ${m.vr_temp_c}°C`)
-  if (m.efficiency_jth != null) parts.push(`${m.efficiency_jth} J/TH`)
+  if (m.hashrate_ghs != null) parts.push(`${Math.round(m.hashrate_ghs)} GH/s`)
+  if (m.temp_c != null) parts.push(`${Math.round(m.temp_c)}°C`)
+  if (m.vr_temp_c) parts.push(`VR ${Math.round(m.vr_temp_c)}°C`)  // 0 = no sensor on this board
+  if (m.power_w != null) parts.push(`${m.power_w.toFixed(1)} W`)
+  if (m.efficiency_jth != null) parts.push(`${m.efficiency_jth.toFixed(1)} J/TH`)
   return parts.join(' · ')
 }
 
@@ -184,6 +185,12 @@ function depth(t, byId) {
   return d
 }
 
+// A healthy device with metrics shows the readable numbers; anything else shows the probe's own detail.
+function detailText(t) {
+  const m = metricsText(t.metrics)
+  return t.status === 'up' && m ? m : [t.detail, m].filter(Boolean).join(' — ')
+}
+
 function TargetRow({ t, byId }) {
   const d = depth(t, byId)
   return jsxs('tr', {
@@ -191,7 +198,7 @@ function TargetRow({ t, byId }) {
       jsx('td', { children: jsx(Pill, { tone: t.status, children: t.status }) }),
       jsxs('td', { className: 'name', style: { paddingLeft: d * 18 }, children: [d ? jsx('i', { children: '└' }) : null, t.name] }),
       jsx('td', { className: 'mono', children: t.check }),
-      jsx('td', { children: [t.detail, metricsText(t.metrics)].filter(Boolean).join(' — ') }),
+      jsx('td', { children: detailText(t) }),
       jsx('td', { className: 'num', children: t.latency_ms != null ? `${Math.round(t.latency_ms)} ms` : '—' }),
       jsx('td', { className: 'num', style: { color: 'var(--muted)' }, children: ago(t.since) })
     ]

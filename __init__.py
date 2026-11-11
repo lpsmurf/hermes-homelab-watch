@@ -99,7 +99,7 @@ def register(ctx) -> None:
             print(f"Wrote {watch.targets_path}. Edit it, then run: hermes homelab check")
             return 0
         try:
-            rnd, targets = watch.check()
+            rnd, targets = watch.check(alerts=cmd == "tick")
         except TargetsError as exc:
             print(f"homelab-watch: {exc}", file=sys.stderr)
             return 2

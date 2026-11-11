@@ -92,6 +92,7 @@ def check_round(
     *,
     probe: Callable[[Target], ProbeResult] = run_probe,
     now: float | None = None,
+    commit_alerts: bool = True,
 ) -> Round:
     """Probe all targets in parallel and update state in place.
 
@@ -107,7 +108,8 @@ def check_round(
     was_open = set(state.get("open", []))
     now_open = {i.root for i in incidents}
     state["targets"] = statuses
-    state["open"] = sorted(now_open)
+    if commit_alerts:  # only the alerting caller may mark incidents as told; a look must not eat an alert
+        state["open"] = sorted(now_open)
     return Round(
         statuses=statuses,
         incidents=incidents,

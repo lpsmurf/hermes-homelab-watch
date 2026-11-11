@@ -110,13 +110,15 @@ class Watch:
         base = data_dir()
         return cls(Path(targets_file).expanduser() if targets_file else base / "targets.yaml", base / "state.json")
 
-    def check(self, now: float | None = None) -> tuple[Round, dict[str, Target]]:
+    def check(self, now: float | None = None, alerts: bool = False) -> tuple[Round, dict[str, Target]]:
+        """One check round. ``alerts=True`` is for the alert job alone: it records which incidents were
+        announced. Everyone else (chat tool, Check now, CLI) just looks, so the next tick still alerts."""
         now = time.time() if now is None else now
         configured = load_targets(self.targets_path)
         with self.store.locked():
             state = self.store.load()
             targets = {**configured, **heartbeat_targets(state)}
-            rnd = check_round(targets, state, probe=heartbeat_probe(state, now), now=now)
+            rnd = check_round(targets, state, probe=heartbeat_probe(state, now), now=now, commit_alerts=alerts)
             self.store.save(state)
         return rnd, targets
 
