@@ -18,7 +18,7 @@ _tick = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_tick)
 _tick._load_package(_ROOT)
 
-from homelab_watch.report import spoken_summary, status_payload  # noqa: E402
+from homelab_watch.report import spoken_summary, status_payload, usage_sentence  # noqa: E402
 from homelab_watch.service import PLUGIN_ID, Watch  # noqa: E402
 from homelab_watch.targets import TargetsError  # noqa: E402
 
@@ -33,10 +33,13 @@ def _watch() -> Watch:
 
 def _respond(run) -> dict:
     try:
-        rnd, targets = run(_watch())
+        watch = _watch()
+        rnd, targets = run(watch)
     except TargetsError as exc:
         return {"overall": "unconfigured", "error": str(exc), "incidents": [], "targets": []}
-    return {**status_payload(rnd, targets), "summary": spoken_summary(rnd, targets)}
+    used = watch.usage_summary()
+    return {**status_payload(rnd, targets, used),
+            "summary": " ".join(filter(None, [spoken_summary(rnd, targets), usage_sentence(used)]))}
 
 
 @router.get("/status")

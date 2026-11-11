@@ -13,8 +13,24 @@ tags: [homelab, monitoring, uptime, bitaxe, home-assistant]
 provides_tools:
   - homelab_status
   - homelab_heartbeat
-provides_hooks: []
+provides_hooks:
+  - post_api_request
 config_schema:
+  baseline_model:
+    type: str
+    default: ""
+    label: Baseline model
+    description: The model savings are measured against. Empty uses your main model.
+  subscription_providers:
+    type: list
+    default: []
+    label: Extra subscription providers
+    description: Provider names you pay for with a flat plan (openai-codex and copilot are built in).
+  prices:
+    type: dict
+    default: {}
+    label: Extra prices
+    description: 'USD per 1M tokens, e.g. {"my-model": {"input": 1, "output": 3}}. Unlisted models count as unpriced.'
   targets_file:
     type: str
     default: ""

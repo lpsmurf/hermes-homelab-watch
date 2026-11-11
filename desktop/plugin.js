@@ -29,6 +29,12 @@ const CSS = `
 .hlw-table td.hlw-name{color:var(--ui-text-primary);white-space:nowrap}
 .hlw-child{padding-left:16px}
 .hlw-mono{font-family:var(--font-mono,monospace);font-size:11.5px}
+.hlw-sep{color:var(--ui-text-quaternary)}
+.hlw-card{border:1px solid var(--ui-stroke-secondary);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.hlw-card h3{margin:0;font-size:13px;font-weight:600;color:var(--ui-text-primary)}
+.hlw-stats{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--ui-text-secondary)}
+.hlw-stats b{color:var(--ui-text-primary);font-weight:600}
+.hlw-saved{color:var(--ui-success)}
 `
 
 const LABEL = { up: 'All good', degraded: 'Watching', down: 'Down', unconfigured: 'Set up', loading: 'Checking', error: 'Offline' }
@@ -52,6 +58,21 @@ function chipText(s) {
   return `Home: ${LABEL[s.overall] || s.overall}`
 }
 
+function shortTokens(n) {
+  if (!n) return '0'
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+  if (n >= 1e3) return `${Math.round(n / 1e3)}k`
+  return String(n)
+}
+
+const usd = n => `$${(n || 0).toFixed(2)}`
+
+function usageChip(s) {
+  const t = s.usage && s.usage.today
+  if (!t || !t.tokens) return ''
+  return ` · ${shortTokens(t.tokens)} tok${t.saved_total ? ` · saved ${usd(t.saved_total)}` : ''}`
+}
+
 function Dot({ tone }) {
   return jsx('span', { className: 'hlw-dot', 'data-tone': tone, 'aria-hidden': 'true' })
 }
@@ -63,7 +84,7 @@ function Chip() {
     className: 'hlw-chip',
     title: s.summary || s.error || 'Homelab Watch',
     onClick: () => host.navigate(PATH),
-    children: [jsx(Dot, { tone: s.overall }), chipText(s)]
+    children: [jsx(Dot, { tone: s.overall }), chipText(s) + usageChip(s)]
   })
 }
 
@@ -97,6 +118,47 @@ function TargetRow({ t, byId }) {
   })
 }
 
+function Stat({ label, value, saved }) {
+  return jsxs('span', { children: [`${label} `, jsx('b', { className: saved ? 'hlw-saved' : undefined, children: value })] })
+}
+
+function UsagePeriod({ title, u }) {
+  if (!u || !u.tokens) return null
+  return jsxs('div', {
+    className: 'hlw-stats',
+    children: [
+      jsx('b', { children: title }),
+      jsx(Stat, { label: 'tokens', value: shortTokens(u.tokens) }),
+      jsx(Stat, { label: 'requests', value: String(u.requests) }),
+      jsx(Stat, { label: 'saved', value: usd(u.saved_total), saved: true }),
+      jsx(Stat, { label: 'by subscription', value: usd(u.saved_by_subscription) }),
+      jsx(Stat, { label: 'by cheaper models', value: usd(u.saved_by_cheaper_model) }),
+      jsx(Stat, { label: 'by free models', value: usd(u.saved_by_free_model) }),
+      jsx(Stat, { label: 'spent', value: usd(u.spent) }),
+      u.judge_cost ? jsx(Stat, { label: 'router judge', value: `−${usd(u.judge_cost)}` }) : null,
+      u.unpriced_tokens ? jsx(Stat, { label: 'unpriced', value: `${shortTokens(u.unpriced_tokens)} tok` }) : null
+    ]
+  })
+}
+
+function UsageCard({ usage }) {
+  const today = usage && usage.today
+  if (!today || !today.tokens) {
+    return jsxs('div', { className: 'hlw-card', children: [jsx('h3', { children: 'Hermes' }), jsx('div', { className: 'hlw-muted', children: 'No model requests recorded yet today.' })] })
+  }
+  const models = Object.entries(today.by_model || {}).sort((a, b) => b[1].tokens - a[1].tokens)
+  return jsxs('div', {
+    className: 'hlw-card',
+    children: [
+      jsx('h3', { children: 'Hermes' }),
+      jsx(UsagePeriod, { title: 'Today', u: today }),
+      jsx(UsagePeriod, { title: 'This month', u: usage.month }),
+      jsx('div', { className: 'hlw-muted', children: models.map(([m, v]) => `${m}: ${shortTokens(v.tokens)} tok (${v.requests})`).join('  ·  ') }),
+      jsx('div', { className: 'hlw-muted', children: 'Saved = API-equivalent dollars at published list prices. Unpriced models are counted, never estimated.' })
+    ]
+  })
+}
+
 function Page({ refresh }) {
   const s = useValue(status)
   const byId = Object.fromEntries(s.targets.map(t => [t.id, t]))
@@ -117,6 +179,7 @@ function Page({ refresh }) {
       s.overall === 'unconfigured'
         ? jsx('div', { className: 'hlw-muted', children: 'Run `hermes homelab init`, then edit targets.yaml.' })
         : null,
+      jsx(UsageCard, { usage: s.usage }),
       ...s.incidents.map(i =>
         jsxs('div', {
           key: i.root,

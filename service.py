@@ -16,6 +16,7 @@ except ImportError:  # Windows
     fcntl = None
     import msvcrt
 
+from . import usage
 from .engine import Round, check_round, rollup
 from .probes import ProbeResult, run_probe
 from .targets import Target, load_targets
@@ -133,6 +134,17 @@ class Watch:
             return self.check(now=now)
         statuses = {tid: statuses[tid] for tid in targets}
         return Round(statuses=statuses, incidents=rollup(targets, statuses), opened=[], resolved=[]), targets
+
+    def record_usage(self, **request) -> None:
+        with self.store.locked():
+            state = self.store.load()
+            usage.record(state, **request)
+            self.store.save(state)
+
+    def usage_summary(self, now: float | None = None) -> dict:
+        with self.store.locked():
+            state = self.store.load()
+        return usage.summary(state, now)
 
     def heartbeat(self, name: str, every_minutes: int = 60, now: float | None = None) -> dict:
         entry = {"last": time.time() if now is None else now, "every_minutes": max(1, int(every_minutes))}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Callable
 
-from .report import spoken_summary, status_payload
+from .report import spoken_summary, status_payload, usage_sentence
 from .service import Watch
 from .targets import TargetsError
 
@@ -24,7 +24,9 @@ def make_handlers(get_watch: Callable[[], Watch]) -> dict[str, Callable[..., str
             if match is None:
                 return json.dumps({"error": f"no target named {wanted!r}", "targets": list(targets)})
             return json.dumps({"target": match.id, "name": match.name, **rnd.statuses[match.id]})
-        out = {"summary": spoken_summary(rnd, targets), "overall": rnd.overall}
+        used = get_watch().usage_summary()
+        out = {"summary": " ".join(filter(None, [spoken_summary(rnd, targets), usage_sentence(used)])),
+               "overall": rnd.overall, "llm_usage_today": used["today"]}
         payload = status_payload(rnd, targets)
         out["incidents"] = payload["incidents"]
         if args.get("detail"):

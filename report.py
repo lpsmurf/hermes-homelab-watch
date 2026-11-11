@@ -6,6 +6,7 @@ import time
 
 from .engine import DOWN, PENDING, Incident, Round
 from .targets import Target
+from .usage import short_tokens
 
 
 def _ago(since: float, now: float) -> str:
@@ -47,8 +48,19 @@ def alert_text(rnd: Round, targets: dict[str, Target], now: float | None = None)
     return "\n".join(parts)
 
 
-def status_payload(rnd: Round, targets: dict[str, Target]) -> dict:
+def usage_sentence(usage_summary: dict | None) -> str:
+    today = (usage_summary or {}).get("today") or {}
+    if not today.get("tokens"):
+        return ""
+    line = f"Hermes used {short_tokens(today['tokens'])} tokens today"
+    if today.get("saved_total"):
+        line += f" and saved about ${today['saved_total']:.2f} at API prices"
+    return line + "."
+
+
+def status_payload(rnd: Round, targets: dict[str, Target], usage_summary: dict | None = None) -> dict:
     return {
+        "usage": usage_summary or {},
         "overall": rnd.overall,
         "incidents": [
             {"root": i.root, "name": i.name, "detail": i.detail, "since": i.since, "affected": i.affected}

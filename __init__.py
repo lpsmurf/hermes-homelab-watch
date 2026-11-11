@@ -7,17 +7,19 @@ what changed each minute, without spending model tokens (see alerts.py).
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import sys
 from pathlib import Path
 
-from . import alerts, schemas
-from .report import alert_text, spoken_summary, status_payload
+from . import alerts, schemas, usage
+from .report import alert_text, spoken_summary, status_payload, usage_sentence
 from .service import Watch, scripts_dir
 from .targets import TargetsError
 from .tools import make_handlers
 
 _EXAMPLE = Path(__file__).parent / "targets.example.yaml"
+logger = logging.getLogger(__name__)
 
 
 def _cli_setup(parser) -> None:
@@ -31,6 +33,27 @@ def _cli_setup(parser) -> None:
 def register(ctx) -> None:
     def get_watch() -> Watch:
         return Watch.from_settings(ctx.get_config("targets_file", default="") or "")
+
+    prices = usage.load_prices(ctx.get_config("prices", default={}) or {})
+
+    def baseline_model() -> str:
+        configured = ctx.get_config("baseline_model", default="") or ""
+        if configured:
+            return configured
+        from hermes_cli.config import load_config_readonly
+        model = load_config_readonly().get("model") or {}
+        return model.get("default", "") if isinstance(model, dict) else str(model)
+
+    def on_api_request(model: str = "", provider: str = "", base_url: str = "", usage: dict | None = None, **_) -> None:
+        try:
+            get_watch().record_usage(
+                model=model, provider=provider, base_url=base_url, usage=usage, prices=prices,
+                baseline_model=baseline_model(),
+                extra_subscriptions=tuple(ctx.get_config("subscription_providers", default=[]) or ()))
+        except Exception:  # an accounting slip must never touch the agent's turn
+            logger.debug("homelab-watch: usage not recorded", exc_info=True)
+
+    ctx.register_hook("post_api_request", on_api_request)
 
     handlers = make_handlers(get_watch)
     for schema in (schemas.HOMELAB_STATUS, schemas.HOMELAB_HEARTBEAT):
@@ -58,7 +81,7 @@ def register(ctx) -> None:
             if text:
                 print(text)
         elif cmd == "json":
-            print(json.dumps(status_payload(rnd, targets), indent=2))
+            print(json.dumps(status_payload(rnd, targets, watch.usage_summary()), indent=2))
         else:
             print(spoken_summary(rnd, targets))
         return 0
@@ -82,7 +105,7 @@ def register(ctx) -> None:
             rnd, targets = get_watch().check()
         except TargetsError as exc:
             return f"Homelab Watch: {exc}"
-        return spoken_summary(rnd, targets)
+        return " ".join(filter(None, [spoken_summary(rnd, targets), usage_sentence(get_watch().usage_summary())]))
 
     ctx.register_command("homelab", slash, description="Check the homelab now, or manage alerts",
                          args_hint="[alerts on [deliver] | alerts off | alerts]")
