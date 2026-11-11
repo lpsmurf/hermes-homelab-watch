@@ -21,6 +21,15 @@ hermes homelab check
 
 Then ask Hermes: *"Is everything OK at home?"*, *"Is Plex up?"*, *"How is the miner doing?"*
 
+## Adding things to watch
+
+Ask Hermes to load the bundled skill and it will walk you through it, find the addresses, set the
+parents and verify each new target:
+
+```
+Use the homelab-watch:add-targets skill to add my NAS and the office printer.
+```
+
 ## Targets
 
 `targets.yaml` lists what to check. See [targets.example.yaml](targets.example.yaml).

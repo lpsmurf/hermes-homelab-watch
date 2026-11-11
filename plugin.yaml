@@ -1,5 +1,5 @@
 name: homelab-watch
-version: 0.1.0
+version: 0.2.0
 manifest_version: 2
 api_version: 1
 requires_hermes: ">=0.23.0"
@@ -12,6 +12,8 @@ author: lpsmurf (HFSP Labs)
 license: MIT
 homepage: https://github.com/lpsmurf/hermes-homelab-watch
 tags: [homelab, monitoring, uptime, bitaxe, home-assistant]
+provides_skills:
+  - add-targets
 provides_tools:
   - homelab_status
   - homelab_heartbeat

@@ -55,6 +55,11 @@ def register(ctx) -> None:
 
     ctx.register_hook("post_api_request", on_api_request)
 
+    skills_dir = Path(__file__).parent / "skills"
+    for child in sorted(skills_dir.iterdir()) if skills_dir.is_dir() else ():
+        if (child / "SKILL.md").is_file():
+            ctx.register_skill(child.name, child / "SKILL.md")
+
     def router_settings() -> router.RouterSettings:
         mode = ctx.get_config("router_mode", default="shadow") or "shadow"
         return router.RouterSettings(
