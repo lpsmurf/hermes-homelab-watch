@@ -330,6 +330,18 @@ function Targets({ s, byId }) {
 }
 
 
+// Desktop occasionally fails to get a login ticket from the local gateway ("Gateway ticket bootstrap failed")
+// and succeeds a moment later, so every call to this plugin's backend retries once before giving up.
+async function call(ctx, path, opts) {
+  try {
+    return await ctx.rest(path, opts)
+  } catch (err) {
+    if (!/ticket|bootstrap|Gateway/i.test(String((err && err.message) || err))) throw err
+    await new Promise(r => setTimeout(r, 1500))
+    return ctx.rest(path, opts)
+  }
+}
+
 const KIND = { http: 'web page', tcp: 'port 22', ping: 'ping only' }
 
 function ScanPanel({ ctx, onDone }) {
@@ -340,18 +352,18 @@ function ScanPanel({ ctx, onDone }) {
     try { return await run() } catch (e) { setSt({ phase: 'error', msg: String((e && e.message) || e) }) }
   }
   const plan = () => go('planning', async () => {
-    const r = await ctx.rest('/scan/plan')
+    const r = await call(ctx, '/scan/plan')
     setSt(r.error ? { phase: 'error', msg: r.error } : { phase: 'confirm', nets: r.networks })
   })
   const scan = plan_ => go('scanning', async () => {
-    const r = await ctx.rest('/scan', { method: 'POST', body: { range: plan_.range }, timeoutMs: 120000 })
+    const r = await call(ctx, '/scan', { method: 'POST', body: { range: plan_.range }, timeoutMs: 120000 })
     if (r.error) return setSt({ phase: 'error', msg: r.error })
     setRows(r.devices.map(d => ({ ...d, pick: !d.known, name: d.name || (d.gateway ? 'Router' : '') })))
     setSt({ phase: 'results', plan: plan_, found: r })
   })
   const add = () => go('adding', async () => {
     const picked = rows.filter(r => r.pick && !r.known).map(r => ({ ip: r.ip, name: r.name || r.ip, check: r.check, url: r.url, port: r.port, gateway: r.gateway }))
-    const r = await ctx.rest('/scan/add', { method: 'POST', body: { devices: picked, gateway: st.found.gateway }, timeoutMs: 60000 })
+    const r = await call(ctx, '/scan/add', { method: 'POST', body: { devices: picked, gateway: st.found.gateway }, timeoutMs: 60000 })
     if (r.error) return setSt({ phase: 'error', msg: r.error })
     setSt({ phase: 'done', added: r.added }); onDone()
   })
@@ -453,7 +465,7 @@ export default {
       if (busy.get()) return
       busy.set(true)
       try {
-        const next = await ctx.rest(force ? '/check' : '/status', force ? { method: 'POST', timeoutMs: 30_000 } : {})
+        const next = await call(ctx, force ? '/check' : '/status', force ? { method: 'POST', timeoutMs: 30_000 } : {})
         status.set({ incidents: [], targets: [], ...next })
       } catch (err) {
         status.set({ ...status.get(), overall: 'error', error: `Homelab Watch backend unavailable: ${err && err.message ? err.message : err}` })
