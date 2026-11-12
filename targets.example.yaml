@@ -1,0 +1,45 @@
+# Homelab Watch targets. Every check is read-only: GET, TCP connect, ping or DNS lookup.
+# `parent` says what a target depends on, so when the router is down you get one alert, not ten.
+defaults:
+  timeout: 5        # seconds per check
+  fail_after: 2     # consecutive failures before a target counts as down (flap damping)
+
+targets:
+  - id: internet
+    name: Internet
+    check: dns
+    host: one.one.one.one
+
+  - id: router
+    name: Router
+    check: ping
+    host: 192.168.1.1
+
+  - id: nas
+    name: Home server
+    check: http
+    url: http://192.168.1.10/
+    parent: router
+
+  - id: plex
+    name: Plex
+    check: http
+    url: http://192.168.1.10:32400/identity
+    parent: nas
+
+  - id: bitaxe
+    name: Bitaxe miner
+    check: bitaxe          # reads AxeOS /api/system/info
+    host: 192.168.1.50
+    parent: router
+    thresholds:
+      temp_max: 68           # °C, chip
+      vr_temp_max: 80        # °C, voltage regulator
+      hashrate_min_ghs: 400
+      efficiency_max_jth: 25
+
+  - id: website
+    name: My website
+    check: http
+    url: https://example.com/
+    parent: internet
